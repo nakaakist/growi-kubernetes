@@ -1,9 +1,9 @@
 #!/bin/sh
-ES_IMAGE_NAME=elasticsearch-crowi
-BACKUP_IMAGE_NAME=backup-crowi
-RESTORE_IMAGE_NAME=restore-crowi
+ES_IMAGE_NAME=elasticsearch-growi
+BACKUP_IMAGE_NAME=backup-growi
+RESTORE_IMAGE_NAME=restore-growi
 MONGO_AWS_IMAGE_NAME=mongo-aws
-RESET_ES_IMAGE_NAME=reset-elasticsearch-crowi
+RESET_ES_IMAGE_NAME=reset-elasticsearch-growi
 REPOSITORY=nakaakist
 docker image build -t ${ES_IMAGE_NAME} ./elasticsearch
 docker image tag ${ES_IMAGE_NAME} ${REPOSITORY}/${ES_IMAGE_NAME}

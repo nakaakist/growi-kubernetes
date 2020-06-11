@@ -42,10 +42,22 @@ spec:
         name: mongodb-pvc
       spec:
         accessModes: ["ReadWriteOnce"]
-        storageClassName: gp2
+        storageClassName: standard
         resources:
           requests:
             storage: 2Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: elasticsearch-configmap
+  labels:
+    app: elasticsearch
+data:
+  elasticsearch.yml: |-
+    http.host: 0.0.0.0
+    http.cors.enabled: true
+    http.cors.allow-origin: "*"
 ---
 apiVersion: v1
 kind: Service
@@ -78,14 +90,15 @@ spec:
       labels:
         app: elasticsearch
     spec:
-      securityContext:
-        fsGroup: 1000
       containers:
         - name: elasticsearch
-          image: nakaakist/elasticsearch-crowi
+          image: nakaakist/elasticsearch-growi
           volumeMounts:
             - name: elasticsearch-pvc
               mountPath: /usr/share/elasticsearch/data
+            - name: config
+              mountPath: /usr/share/elasticsearch/config/elasticsearch.yml
+              subPath: elasticsearch.yml
           ports:
             - containerPort: 9200
           env:
@@ -111,12 +124,16 @@ spec:
             requests:
               cpu: "200m"
               memory: "0.1Gi"
+      volumes:
+        - name: config
+          configMap:
+            name: elasticsearch-configmap
   volumeClaimTemplates:
     - metadata:
         name: elasticsearch-pvc
       spec:
         accessModes: ["ReadWriteOnce"]
-        storageClassName: gp2
+        storageClassName: standard
         resources:
           requests:
             storage: 2Gi
@@ -124,105 +141,34 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: redis-service
+  name: growi-service
   labels:
-    app: redis
+    app: growi
 spec:
   selector:
-    app: redis
-  ports:
-    - protocol: TCP
-      port: 6379
-      targetPort: 6379
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: redis-deployment
-  labels:
-    app: redis
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: redis
-  template:
-    metadata:
-      labels:
-        app: redis
-    spec:
-      containers:
-        - name: redis
-          image: redis:4.0.8
-          ports:
-            - containerPort: 6379
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: plantuml-service
-  labels:
-    app: plantuml
-spec:
-  selector:
-    app: plantuml
-  ports:
-    - protocol: TCP
-      port: 8080
-      targetPort: 8080
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: plantuml-deployment
-  labels:
-    app: plantuml
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: plantuml
-  template:
-    metadata:
-      labels:
-        app: plantuml
-    spec:
-      containers:
-        - name: plantuml
-          image: plantuml/plantuml-server:latest
-          ports:
-            - containerPort: 8080
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: crowi-service
-  labels:
-    app: crowi
-spec:
-  selector:
-    app: crowi
+    app: growi
   ports:
     - protocol: TCP
       port: 3000
       targetPort: 3000
-  type: LoadBalancer
+      nodePort: 30000
+  type: NodePort
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: crowi-deployment
+  name: growi-deployment
   labels:
-    app: crowi
+    app: growi
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: crowi
+      app: growi
   template:
     metadata:
       labels:
-        app: crowi
+        app: growi
     spec:
       initContainers:
         - image: busybox
@@ -232,28 +178,17 @@ spec:
           command: ["sh", "-c", "until nslookup mongodb-service; do echo waiting for mongodb-service; sleep 1; done"]
           name: wait-for-mongodb
       containers:
-        - name: crowi
-          image: crowi/crowi:1.7.9
+        - name: growi
+          image: weseek/growi:4.0.4
           ports:
             - containerPort: 3000
           env:
             - name: MONGO_URI
-              value: mongodb://mongodb-service:27017/crowi
-            - name: REDIS_URL
-              value: redis://redis-service:6379/crowi
+              value: mongodb://mongodb-service:27017/growi
             - name: ELASTICSEARCH_URI
-              value: http://elasticsearch-service:9200/
-            - name: PLANTUML_URI
-              value: //plantuml-service:8080
-            - name: FILE_UPLOAD
-              value: aws
+              value: http://elasticsearch-service:9200/growi
             - name: PASSWORD_SEED
               valueFrom:
                 secretKeyRef:
-                  name: crowi-secrets
+                  name: growi-secrets
                   key: password-seed
-            - name: SECRET_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: crowi-secrets
-                  key: secret-token
