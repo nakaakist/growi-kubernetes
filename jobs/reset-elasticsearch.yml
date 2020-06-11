@@ -1,0 +1,11 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: reset-elasticsearch-job
+spec:
+  template:
+    spec:
+      containers:
+      - name: reset-elasticsearch-job
+        image: nakaakist/reset-elasticsearch-crowi
+      restartPolicy: Never

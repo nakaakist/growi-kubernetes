@@ -1,0 +1,258 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb-service
+  labels:
+    app: mongodb
+spec:
+  clusterIP: None
+  selector:
+    app: mongodb
+  ports:
+    - protocol: TCP
+      port: 27017
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mongodb-statefulset
+  labels:
+    app: mongodb
+spec:
+  serviceName: mongodb-service
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongodb
+  template:
+    metadata:
+      labels:
+        app: mongodb
+    spec:
+      containers:
+        - name: mongodb
+          image: mongo:3.6.3
+          volumeMounts:
+            - name: mongodb-pvc
+              mountPath: /data/db
+          ports:
+            - containerPort: 27017
+  volumeClaimTemplates:
+    - metadata:
+        name: mongodb-pvc
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: standard
+        resources:
+          requests:
+            storage: 2Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: elasticsearch-service
+  labels:
+    app: elasticsearch
+spec:
+  clusterIP: None
+  selector:
+    app: elasticsearch
+  ports:
+    - protocol: TCP
+      port: 9200
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: elasticsearch-statefulset
+  labels:
+    app: elasticsearch
+spec:
+  serviceName: elasticsearch-service
+  replicas: 1
+  selector:
+    matchLabels:
+      app: elasticsearch
+  template:
+    metadata:
+      labels:
+        app: elasticsearch
+    spec:
+      containers:
+        - name: elasticsearch
+          image: nakaakist/elasticsearch-crowi
+          volumeMounts:
+            - name: elasticsearch-pvc
+              mountPath: /usr/share/elasticsearch/data
+          ports:
+            - containerPort: 9200
+          env:
+            - name: LimitMEMLOCK
+              value: "infinity"
+            - name: bootstrap.memory_lock
+              value: "false"
+            - name: discovery.type
+              value: single-node
+            - name: xpack.graph.enabled
+              value: "false"
+            - name: xpack.ml.enabled
+              value: "false"
+            - name: xpack.monitoring.enabled
+              value: "false"
+            - name: xpack.security.enabled
+              value: "false"
+            - name: xpack.watcher.enabled
+              value: "false"
+            - name: ES_JAVA_OPTS
+              value: "-Xms100m -Xmx100m"
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "0.1Gi"
+  volumeClaimTemplates:
+    - metadata:
+        name: elasticsearch-pvc
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: standard
+        resources:
+          requests:
+            storage: 2Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-service
+  labels:
+    app: redis
+spec:
+  selector:
+    app: redis
+  ports:
+    - protocol: TCP
+      port: 6379
+      targetPort: 6379
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-deployment
+  labels:
+    app: redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:4.0.8
+          ports:
+            - containerPort: 6379
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: plantuml-service
+  labels:
+    app: plantuml
+spec:
+  selector:
+    app: plantuml
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: plantuml-deployment
+  labels:
+    app: plantuml
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: plantuml
+  template:
+    metadata:
+      labels:
+        app: plantuml
+    spec:
+      containers:
+        - name: plantuml
+          image: plantuml/plantuml-server:latest
+          ports:
+            - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: crowi-service
+  labels:
+    app: crowi
+spec:
+  selector:
+    app: crowi
+  ports:
+    - protocol: TCP
+      port: 3000
+      targetPort: 3000
+      nodePort: 30000
+  type: NodePort
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: crowi-deployment
+  labels:
+    app: crowi
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: crowi
+  template:
+    metadata:
+      labels:
+        app: crowi
+    spec:
+      initContainers:
+        - image: busybox
+          command: ["sh", "-c", "until nslookup elasticsearch-service; do echo waiting for elasticsearch-service; sleep 1; done"]
+          name: wait-for-elasticsearch
+        - image: busybox
+          command: ["sh", "-c", "until nslookup mongodb-service; do echo waiting for mongodb-service; sleep 1; done"]
+          name: wait-for-mongodb
+      containers:
+        - name: crowi
+          image: crowi/crowi:1.7.9
+          ports:
+            - containerPort: 3000
+          env:
+            - name: MONGO_URI
+              value: mongodb://mongodb-service:27017/crowi
+            - name: REDIS_URL
+              value: redis://redis-service:6379/crowi
+            - name: ELASTICSEARCH_URI
+              value: http://elasticsearch-service:9200/
+            - name: PLANTUML_URI
+              value: //plantuml-service:8080
+            - name: FILE_UPLOAD
+              value: aws
+            - name: PASSWORD_SEED
+              valueFrom:
+                secretKeyRef:
+                  name: crowi-secrets
+                  key: password-seed
+            - name: SECRET_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: crowi-secrets
+                  key: secret-token
