@@ -7,4 +7,4 @@
 
 aws s3 cp s3://$BUCKET_NAME/backup/$BACKUP_FILE ./
 unzip $BACKUP_FILE
-mongorestore -v --host $MONGO_HOST --db crowi backup/crowi
+mongorestore -v --host $MONGO_HOST --db growi backup/growi

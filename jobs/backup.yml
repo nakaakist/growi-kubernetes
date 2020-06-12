@@ -10,22 +10,22 @@ spec:
         spec:
           containers:
             - name: backup
-              image: nakaakist/backup-crowi
+              image: nakaakist/backup-growi
               env:
                 - name: ACCESS_KEY_ID
                   valueFrom:
                     secretKeyRef:
-                      name: crowi-secrets
+                      name: growi-secrets
                       key: aws-access-key-id
                 - name: SECRET_ACCESS_KEY
                   valueFrom:
                     secretKeyRef:
-                      name: crowi-secrets
+                      name: growi-secrets
                       key: aws-secret-access-key
                 - name: BUCKET_NAME
                   valueFrom:
                     secretKeyRef:
-                      name: crowi-secrets
+                      name: growi-secrets
                       key: aws-backup-bucket-name
                 - name: MONGO_HOST
                   value: mongodb-service
